@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Predictive City Pulse AI - Command Center</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* BASE BRUTALISM & CYBERPUNK */
+        :root { --neon-red: #ff0044; --neon-cyan: #00e6ff; --bg-dark: #050505; --hud-bg: rgba(10, 10, 15, 0.9); }
+        body { margin: 0; padding: 0; background-color: var(--bg-dark); color: white; font-family: 'Courier New', Courier, monospace; overflow-x: hidden; overflow-y: auto; }
+        
+        /* CRT SCANLINES EFFECT */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%; z-index: 9998; pointer-events: none;
+        }
+
+        /* --- SCROLLING LANDING PAGE --- */
+        #landing-page {
+            position: absolute; top: 0; left: 0; width: 100vw; min-height: 100vh; background: var(--bg-dark); z-index: 10000;
+            border: 10px solid var(--neon-red); box-sizing: border-box;
+            background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px;
+        }
+
+        /* Hero Section (Top Half) */
+        .hero-section {
+            min-height: calc(100vh - 20px); display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: relative; border-bottom: 4px dashed var(--neon-red); background: rgba(0,0,0,0.6); padding: 20px; text-align: center;
+        }
+        .brutal-title {
+            font-size: 6rem; font-weight: 900; font-family: Impact, sans-serif; text-transform: uppercase; margin: 0;
+            color: #fff; text-shadow: 4px 4px 0px var(--neon-cyan), -4px -4px 0px var(--neon-red);
+            line-height: 1; animation: glitch-skew 3s infinite linear alternate-reverse;
+        }
+        .brutal-subtitle { font-size: 1.5rem; background: #fff; color: #000; padding: 5px 15px; margin-top: 20px; font-weight: bold; box-shadow: 5px 5px 0px var(--neon-red); }
+        
+        #enter-btn {
+            margin-top: 50px; font-size: 2rem; font-family: 'Courier New', monospace; background: #000; color: var(--neon-cyan);
+            border: 4px solid var(--neon-cyan); padding: 15px 40px; cursor: pointer; text-transform: uppercase; font-weight: bold;
+            box-shadow: 10px 10px 0px var(--neon-red); transition: 0.1s; width: 100%; max-width: 400px;
+        }
+        #enter-btn:hover { transform: translate(5px, 5px); box-shadow: 5px 5px 0px var(--neon-red); background: var(--neon-cyan); color: #000; }
+
+        .scroll-indicator { position: absolute; bottom: 20px; font-weight: bold; color: var(--neon-cyan); font-size: 1rem; animation: bounce 2s infinite; text-shadow: 2px 2px 0px #000; letter-spacing: 1px; text-align: center; width: 100%;}
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+
+        /* Team Section (Bottom Half) */
+        .team-section {
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 60px 20px; background: rgba(5,5,5,0.9);
+        }
+        .team-title { font-size: 4rem; color: #fff; text-shadow: 3px 3px 0px var(--neon-red); margin-bottom: 40px; text-transform: uppercase; font-weight: 900; font-family: Impact, sans-serif; text-align: center;}
+        .team-grid { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; width: 100%;}
+        .id-card {
+            background: #111; border: 3px solid var(--neon-cyan); width: 100%; max-width: 300px; padding: 20px; box-sizing: border-box;
+            box-shadow: 8px 8px 0px var(--neon-red); position: relative; overflow: hidden; transition: 0.2s;
+        }
+        .id-card:hover { transform: translateY(-5px); box-shadow: 12px 12px 0px var(--neon-cyan); border-color: var(--neon-red); }
+        .id-photo { width: 100%; height: 180px; background: #222; border: 2px solid #444; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; color: #555; font-size: 5rem; font-weight: bold; font-family: Impact, sans-serif;}
+        .id-card:hover .id-photo { background: repeating-linear-gradient(45deg, #222, #222 10px, #333 10px, #333 20px); color: var(--neon-cyan); }
+        .id-name { font-size: 2rem; font-weight: bold; color: #fff; margin: 0; text-transform: uppercase; }
+        .id-role { color: var(--neon-red); font-weight: bold; margin-top: 5px; font-size: 1.1rem; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 10px; }
+        .id-status { color: #00ff00; font-size: 0.9rem; }
+
+        /* --- NAVIGATION HUD --- */
+        #nav-hud {
+            display: none; position: absolute; top: 10px; right: 10px; z-index: 1001;
+            background: var(--hud-bg); border: 2px solid var(--neon-cyan); padding: 5px;
+            box-shadow: 3px 3px 0px var(--neon-cyan); gap: 10px;
+        }
+        .nav-link { color: var(--neon-cyan); font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 1rem; transition: 0.2s; padding: 5px 8px; border: 1px solid transparent; }
+        .nav-link:hover, .nav-link.active { background: var(--neon-cyan); color: #000; border: 1px solid #fff; }
+
+        /* --- VIEWS --- */
+        .view-container { display: none; height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; }
+        .view-container.active { display: block; }
+
+        /* --- MAP VIEW --- */
+        #map { height: 100%; width: 100%; }
+        .dashboard {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: var(--hud-bg);
+            padding: 15px; border: 2px solid #333; box-shadow: 0px -5px 15px rgba(0,0,0,0.8); width: 90%; max-width: 400px; box-sizing: border-box;
+            border-radius: 8px;
+        }
+        
+        /* Larger screens (Desktop) map dashboard position */
+        @media (min-width: 768px) {
+            .dashboard {
+                top: 20px; left: 20px; bottom: auto; transform: none; width: 340px;
+                box-shadow: 8px 8px 0px var(--neon-red); border-radius: 0;
+            }
+        }
+
+        h2.dash-title { margin-top: 0; color: var(--neon-cyan); font-size: 1.2rem; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px;}
+        .search-box { width: 100%; padding: 10px; background: #000; border: 2px solid #555; color: var(--neon-cyan); font-family: monospace; font-size: 0.9rem; margin-top: 5px; box-sizing: border-box; outline: none; transition: 0.2s; text-transform: uppercase; }
+        .search-box:focus { border-color: var(--neon-cyan); box-shadow: 2px 2px 0px var(--neon-cyan); }
+        .filters { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; margin-bottom: 15px; justify-content: space-between;}
+        .filter-btn { flex: 1; text-align: center; background: #111; color: #888; border: 2px solid #444; padding: 6px 4px; cursor: pointer; font-family: monospace; font-weight: bold; text-transform: uppercase; transition: 0.2s; font-size: 0.75rem;}
+        .filter-btn:hover { background: #222; color: white; border-color: #fff; }
+        .filter-btn.active { background: var(--neon-cyan); color: black; border-color: var(--neon-cyan); box-shadow: 2px 2px 0px #fff; }
+        #predict-btn { background: var(--neon-red); color: white; border: 2px solid #fff; padding: 12px; cursor: pointer; font-weight: bold; font-family: monospace; width: 100%; font-size: 1rem; text-transform: uppercase; transition: 0.1s; box-shadow: 3px 3px 0px #fff; }
+        #predict-btn:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #fff; background: #cc0033; }
+        #predict-btn.active { background: #333; border-color: #555; box-shadow: none; color: #888; }
+        
+        /* Leaflet Tweaks */
+        .leaflet-popup-content-wrapper { background: #000; color: var(--neon-cyan); border: 2px solid var(--neon-red); border-radius: 0; font-family: monospace; font-size: 0.9rem;}
+        .leaflet-popup-tip { background: var(--neon-red); }
+        .radar-blip { width: 20px; height: 20px; border-radius: 50%; position: absolute; animation: pulse 1s infinite; box-shadow: 0 0 10px currentColor; border: 2px solid #fff; }
+        @keyframes pulse { 0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(255, 0, 68, 0.8); } 70% { transform: scale(1.5); box-shadow: 0 0 0 12px rgba(255, 0, 68, 0); } 100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(255, 0, 68, 0); } }
+
+        /* --- INTEL VIEW (ABOUT) --- */
+        #intel-view { background: var(--bg-dark); padding: 80px 20px; box-sizing: border-box; overflow-y: auto;}
+        .terminal-box { background: rgba(0,20,0,0.8); border: 2px solid #0f0; padding: 20px; max-width: 900px; margin: 0 auto; box-shadow: 0 0 10px #0f0; color: #0f0; font-size: 1rem; line-height: 1.5; }
+        .terminal-header { border-bottom: 2px solid #0f0; padding-bottom: 10px; margin-bottom: 15px; font-weight: bold; font-size: 1.2rem; }
+        .typewriter { overflow: hidden; white-space: pre-wrap; margin: 0; }
+
+        /* --- MOBILE MEDIA QUERIES --- */
+        @media (max-width: 768px) {
+            .brutal-title { font-size: 3.5rem; }
+            .brutal-subtitle { font-size: 1rem; padding: 5px 10px;}
+            .team-title { font-size: 2.5rem; }
+            #enter-btn { font-size: 1.5rem; padding: 12px 20px; }
+            .terminal-header { font-size: 1.5rem; }
+            .terminal-box { font-size: 1rem; padding: 20px; }
+            #nav-hud { top: auto; bottom: 10px; right: 50%; transform: translateX(50%); flex-direction: row; width: auto; justify-content: center;}
+            
+            /* Give some space at bottom of map for the nav hud on mobile if map is active */
+            .leaflet-control-container .leaflet-bottom { bottom: 60px; }
+            
+            /* When map is active, dashboard is at the bottom, so move nav to top on mobile */
+            #app-container.active-map #nav-hud {
+                top: 10px; bottom: auto; right: 10px; transform: none; width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="scanlines"></div>
+
+    <div id="landing-page">
+        <div class="hero-section">
+            <h1 class="brutal-title">Predictive<br>City Pulse AI</h1>
+            <div class="brutal-subtitle">OUR AI DOESN'T MAKE CITIES SMART. IT MAKES THEM FORESIGHTED.</div>
+            <button id="enter-btn" onclick="initSystem()">[ INITIALIZE SYSTEM ]</button>
+            <div class="scroll-indicator">▼ SCROLL FOR OPERATIVES INTEL ▼</div>
+        </div>
+
+        <div class="team-section">
+            <div class="team-title">CLASS-S OPERATIVES</div>
+            <div class="team-grid">
+                <div class="id-card">
+                    <div class="id-photo">B</div>
+                    <h3 class="id-name">Bharat</h3>
+                    <div class="id-role">SYSTEMS INTEGRATOR</div>
+                    <div class="id-status">STATUS: ONLINE<br>SYS CLEARANCE: LEVEL 9</div>
+                </div>
+                <div class="id-card">
+                    <div class="id-photo">R</div>
+                    <h3 class="id-name">Rohan</h3>
+                    <div class="id-role">AI / DATA ARCHITECT</div>
+                    <div class="id-status">STATUS: ONLINE<br>SYS CLEARANCE: LEVEL 9</div>
+                </div>
+                <div class="id-card">
+                    <div class="id-photo">O</div>
+                    <h3 class="id-name">Omkar</h3>
+                    <div class="id-role">FULL-STACK COMMANDER</div>
+                    <div class="id-status">STATUS: ONLINE<br>SYS CLEARANCE: LEVEL 9</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <div id="nav-hud">
+            <div class="nav-link active" onclick="switchView('map-view', this)">[ MAP UI ]</div>
+            <div class="nav-link" onclick="switchView('intel-view', this)">[ SYS INTEL ]</div>
+        </div>
+
+        <div id="map-view" class="view-container active">
+            <div class="dashboard">
+                <h2 class="dash-title">PUNE : NODE ALPHA</h2>
+                <p style="font-size: 0.8rem; margin-bottom: 0;">SYS STATUS: <span id="status-text" style="color: #00ff00; font-weight: bold;">NOMINAL</span></p>
+                
+                <input type="text" id="search-bar" class="search-box" placeholder="Search Sector..." onkeyup="handleSearch()">
+
+                <div style="font-size: 0.7rem; color: #666; margin-top: 10px; margin-bottom: 2px;">DATA STREAMS</div>
+                <div class="filters">
+                    <button class="filter-btn active" id="btn-all" onclick="setFeature('all')">ALL</button>
+                    <button class="filter-btn" id="btn-traffic" onclick="setFeature('traffic')">TRAF</button>
+                    <button class="filter-btn" id="btn-flood" onclick="setFeature('flood')">FLOD</button>
+                    <button class="filter-btn" id="btn-garbage" onclick="setFeature('garbage')">WST</button>
+                    <button class="filter-btn" id="btn-crowd" onclick="setFeature('crowd')">CRWD</button>
+                </div>
+
+                <button id="predict-btn" onclick="togglePrediction()">ENGAGE AI PREDICTION</button>
+            </div>
+            <div id="map"></div>
+        </div>
+
+        <div id="intel-view" class="view-container">
+            <div class="terminal-box">
+                <div class="terminal-header">>>> PROJECT DEBRIEF : PREDICTIVE CITY PULSE</div>
+                <p class="typewriter" id="typewriter-text">
+Traditional "Smart Cities" are fatally flawed. They are reactive.
+They deploy sensors to tell you that a traffic jam has occurred, a street has flooded, or a stampede is happening. By the time the alert triggers, the damage is done.
+
+PROJECT PULSE changes the paradigm. 
+Powered by advanced Time-Series AI models and localized edge-compute data streams, we do not react to disasters. We anticipate them.
+
+Using real-time data integration across Traffic, Weather, Sanitation, and Crowd parameters, the AI predicts infrastructural failure 30 minutes before it happens. 
+
+If we know the future, we can change the outcome.
+>>> END OF TRANSMISSION.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Ensure page always starts at the top
+        window.scrollTo(0, 0);
+
+        var map;
+        let currentMarkers = [];
+        let activeMode = 'current'; 
+        let activeFeature = 'all';  
+        let searchQuery = "";
+        
+        // Add meta viewport tag dynamically if missing (failsafe)
+        if (!document.querySelector('meta[name="viewport"]')) {
+            let meta = document.createElement('meta');
+            meta.name = "viewport";
+            meta.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+            document.head.appendChild(meta);
+        }
+
+        // --- NAVIGATION & VIEWS LOGIC ---
+        function initSystem() {
+            // Lock scrolling and hide landing page
+            document.body.style.overflow = 'hidden';
+            document.getElementById('landing-page').style.display = 'none';
+            document.getElementById('nav-hud').style.display = 'flex';
+            document.getElementById('app-container').classList.add('active-map');
+            
+            if (!map) {
+                map = L.map('map', { zoomControl: false }).setView([18.5204, 73.8567], 12);
+                L.control.zoom({ position: 'bottomright' }).addTo(map);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+            }
+            map.invalidateSize(); 
+            fetchData();
+        }
+
+        function switchView(viewId, element) {
+            document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            
+            document.getElementById(viewId).classList.add('active');
+            element.classList.add('active');
+
+            let appContainer = document.getElementById('app-container');
+            if (viewId === 'map-view') {
+                appContainer.classList.add('active-map');
+                if (map) setTimeout(() => { map.invalidateSize(); }, 100);
+            } else {
+                appContainer.classList.remove('active-map');
+            }
+        }
+
+        // --- MAP DASHBOARD LOGIC ---
+        function clearMarkers() {
+            currentMarkers.forEach(marker => map.removeLayer(marker));
+            currentMarkers = [];
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('search-bar').value.toLowerCase();
+            fetchData(); 
+        }
+
+        function setFeature(feature) {
+            activeFeature = feature;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + feature).classList.add('active');
+            fetchData();
+        }
+
+        function togglePrediction() {
+            let btn = document.getElementById('predict-btn');
+            let status = document.getElementById('status-text');
+
+            if (activeMode === 'current') {
+                activeMode = 'predict';
+                btn.innerText = "ABORT PREDICTION";
+                btn.classList.add('active');
+                status.innerText = "CRITICAL FORECAST ACTIVE";
+                status.style.color = "#ff0044";
+            } else {
+                activeMode = 'current';
+                btn.innerText = "ENGAGE AI PREDICTION";
+                btn.classList.remove('active');
+                status.innerText = "NOMINAL";
+                status.style.color = "#00ff00";
+            }
+            fetchData();
+        }
+
+        async function fetchData() {
+            try {
+                // BACK TO LOCALHOST FOR TESTING ON YOUR OWN LAPTOP!
+                let response = await fetch(`http://127.0.0.1:8000/api/data?mode=${activeMode}&feature=${activeFeature}`);
+                let data = await response.json();
+                
+                clearMarkers();
+
+                let filteredZones = data.zones.filter(zone => zone.name.toLowerCase().includes(searchQuery));
+
+                filteredZones.forEach(zone => {
+                    let marker;
+                    
+                    if (zone.risk >= 80 && activeMode === 'predict') {
+                        let pulseIcon = L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div class="radar-blip" style="background-color: ${zone.color}; color: ${zone.color};"></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        });
+                        marker = L.marker([zone.lat, zone.lng], {icon: pulseIcon});
+                    } else {
+                        marker = L.circleMarker([zone.lat, zone.lng], { color: zone.color, radius: 8, fillOpacity: 0.8, weight: 2 });
+                    }
+
+                    let popupContent = `<b style="font-size:1.1rem; text-transform:uppercase;">${zone.name}</b><br><br>RISK LEVEL: ${zone.risk}%<br>`;
+                    popupContent += `<br><span style="color:${zone.color};">>>> ${zone.issue}</span>`;
+                    
+                    marker.bindPopup(popupContent).addTo(map);
+                    
+                    if (zone.risk >= 80 && activeMode === 'predict') marker.openPopup();
+                    
+                    currentMarkers.push(marker);
+                });
+            } catch (error) {
+                console.error("Sys Error:", error);
+                document.getElementById('status-text').innerText = "DATA LINK SEVERED";
+                document.getElementById('status-text').style.color = "red";
+            }
+        }
+    </script>
+</body>
+</html>
