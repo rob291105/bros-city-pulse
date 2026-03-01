@@ -25,3 +25,11 @@ Integration with real-time smart city sensors and APIs.
 
 ## Authors
 Hackathon Team
+
+## Project Overview
+
+Predictive City Pulse AI is an AI-powered smart city system that forecasts urban risks before they occur. Instead of reacting to traffic congestion, flooding, crowd buildup, or waste overflow, the platform analyzes city data such as traffic density, weather, and crowd levels to predict potential problems in advance.
+
+The system generates real-time risk alerts through a web dashboard, enabling authorities to take preventive action and improve urban safety and efficiency.
+
+This project transforms cities from reactive systems into predictive, foresighted ecosystems.
